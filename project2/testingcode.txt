@@ -1,0 +1,15 @@
+Part1:
+../swyard.py -t testing_files/stage1_tests.srpy myrouter_part1.py
+
+
+Part2:
+../swyard.py -t testing_files/stage2_tests.srpy myrouter_part2.py
+
+
+Part3:
+../swyard.py -t testing_files/stage3_tests.py myrouter_part3.py
+
+
+
+Usinf mininet to test part1 and part2:
+

@@ -1,0 +1,61 @@
+'''
+Ethernet learning switch in Python.
+
+Note that this file currently has the code to implement a "hub"
+in it, not a learning switch.  (I.e., it's currently a switch
+that doesn't learn.)
+'''
+from switchyard.lib.userlib import *
+import time
+
+def main(net):
+
+	# a list of interfaces that are configured on network devices
+	my_interfaces = net.interfaces()
+	mymacs = [intf.ethaddr for intf in my_interfaces]
+
+	# this table contains 5 entries
+	lookup_table = dict()
+	MAX_ENTRIES = 5
+
+	while True:
+		try:
+			timestamp,input_port,packet = net.recv_packet()
+		except NoPackets:
+			continue
+		except Shutdown:
+			return
+
+
+		# packet source does not in our lookup_table, add this into our table using LRU
+		if packet[0].src not in lookup_table:
+			# check if our table has empty slot
+			if len(lookup_table.keys()) >= MAX_ENTRIES:
+				# sort table according to timestamp
+				sortedTable = sorted(lookup_table.items(), key=lambda x: x[1][1])
+				# remove the least recently used entries
+				lookup_table.pop(sortedTable[0][0])
+			lookup_table[packet[0].src] = (input_port, time.time())
+		# packet source dst in lookup_table		
+		else:
+			# check if incoming port for packet same as port info in table
+			if input_port != lookup_table[packet[0].src][0]:
+				lookup_table[packet[0].src] = (input_port, lookup_table[packet[0].dst][1])
+
+		log_info("packet destination {}".format(packet[0].dst))
+
+		log_debug ("In {} received packet {} on {}".format(net.name, packet, input_port))
+		if packet[0].dst in mymacs:
+			log_debug ("Packet intended for me")	
+		else:
+			# destination is in our table, then update timestamp and send packet out the interface/port we previously learned
+			if packet[0].dst in lookup_table:
+				lookup_table[packet[0].dst] = (lookup_table[packet[0].dst][0], time.time())
+				net.send_packet(lookup_table[packet[0].dst][0], packet)
+			else:
+				# floods packets to all ports except source
+				for intf in my_interfaces:
+					if input_port != intf.name:
+						log_debug ("Flooding packet {} to {}".format(packet, intf.name))
+						net.send_packet(intf.name, packet)
+	net.shutdown()
